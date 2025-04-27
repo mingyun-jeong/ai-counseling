@@ -375,28 +375,28 @@ def generate_custom_response(note, emotion, mode, keywords, analysis):
     if mode == ResponseMode.EMOTIONAL:
         if emotion == EmotionType.SAD:
             feeling_options = [
-                "이런 감정은 누구에게나 찾아올 수 있는 자연스러운 감정입니다. 너무 걱정하지 마세요. ",
-                "그런 감정을 느끼는 것은 완전히 정상적인 일이에요. 자신에게 조금 더 여유를 주세요. ",
-                "힘든 시간을 보내고 계시지만, 이런 감정도 지나갈 거예요. "
+                "요즘 정말 힘드시겠네요. ",
+                "그런 상황이라면 정말 마음이 무거울 수밖에 없죠. ",
+                "많이 지치셨겠어요. "
             ]
         else:  # HAPPY
             feeling_options = [
-                "정말 축하드려요! 이런 기쁨을 마음껏 누리셔도 좋아요. ",
-                "그 기쁨을 충분히 누리세요. 당신은 이런 행복한 순간을 누릴 자격이 있어요. ",
-                "그런 기쁜 마음이 드는 건 정말 축하할 일이에요! "
+                "그런 순간은 정말 소중하죠! ",
+                "정말 기쁜 소식이네요. 축하해요! ",
+                "그런 경험은 정말 기분 좋게 만들죠. "
             ]
     else:  # RATIONAL
         if emotion == EmotionType.SAD:
             feeling_options = [
-                "이런 감정은 누구에게나 있는 자연스러운 반응입니다. 너무 자책하지 마세요. ",
-                "그런 감정을 느끼는 것은 정상적인 일입니다. 중요한 것은 이제 어떻게 대응할지입니다. ",
-                "지금 느끼는 감정을 인정하고, 한 걸음씩 나아가는 것이 중요합니다. "
+                "그런 상황에서 힘드셨군요. 이제 어떻게 해결해 나갈지 생각해봅시다. ",
+                "그런 어려움이 있으셨군요. 해결책을 같이 찾아봐요. ",
+                "그런 상황이 생기면 누구나 힘들어요. 차분히 해결 방법을 찾아보죠. "
             ]
         else:  # HAPPY
             feeling_options = [
-                "이런 긍정적인 순간은 앞으로의 동기부여가 됩니다. ",
-                "이 기쁨을 통해 앞으로의 방향성도 더 명확해질 수 있습니다. ",
-                "이런 성취감은 자신감 향상에 큰 도움이 됩니다. "
+                "좋은 성과를 이루셨네요. 이 경험을 더 발전시켜 보죠. ",
+                "정말 잘 하셨어요. 앞으로도 이런 성과를 이어가려면 어떻게 해야 할까요? ",
+                "멋진 결과네요. 이런 성공을 계속 이어가려면 무엇이 필요할까요? "
             ]
     
     feeling_part = random.choice(feeling_options)
@@ -472,55 +472,57 @@ def generate_custom_response(note, emotion, mode, keywords, analysis):
 def generate_custom_summary(note, emotion, mode, response, analysis):
     """상담 응답에 대한 맞춤형 한 줄 요약을 생성합니다."""
     
-    # 주제별 요약 구성
-    topic_part = ""
+    # 핵심 해결책 추출 (응답에서 가장 중요한 제안 부분 추출)
+    key_solution = ""
+    
+    # 상황 기반 핵심 해결책 구성
     if analysis["main_topic"] == "직장/업무":
-        topic_part = "직장 상황에서 "
+        if emotion == EmotionType.SAD:
+            solutions = [
+                "우선순위를 정하고 짧은 휴식을 챙기세요.",
+                "중요한 업무 3가지만 선택하고 집중하세요.",
+                "업무 사이에 짧은 휴식을 꼭 가지세요.",
+                "퇴근 후에는 업무 연락을 확인하지 않는 경계를 만드세요."
+            ]
+        else:  # HAPPY
+            solutions = [
+                "성공 요소를 기록하고 다음 목표를 계획하세요.",
+                "이 성취의 방법을 다른 업무에도 적용해보세요.",
+                "성공을 기념하는 작은 보상을 자신에게 주세요."
+            ]
     elif analysis["main_topic"] == "인간관계":
-        topic_part = "인간관계에서 "
-    elif analysis["main_topic"] == "건강":
-        topic_part = "건강 문제에서 "
-    elif analysis["main_topic"] == "교육/학습":
-        topic_part = "학업 상황에서 "
-    elif analysis["main_topic"] == "재정":
-        topic_part = "재정적 문제에서 "
-    else:
-        topic_part = "일상에서 "
-    
-    # 감정별 요약 구성
-    emotion_part = ""
-    if emotion == EmotionType.SAD:
-        emotion_part = "느끼는 슬픔을 "
-    else:  # HAPPY
-        emotion_part = "느끼는 기쁨을 "
-    
-    # 모드별 요약 구성
-    mode_part = ""
-    if mode == ResponseMode.EMOTIONAL:
         if emotion == EmotionType.SAD:
-            mode_part = "공감하고 위로합니다."
-            if analysis["action_needed"]:
-                mode_part = "공감하며 자기 돌봄을 권장합니다."
+            solutions = [
+                "나-전달법으로 솔직한 대화를 시도하세요.",
+                "상대방 관점을 이해하기 위해 적극적으로 경청하세요.",
+                "비난 대신 감정과 상황에 초점을 맞춰 대화하세요.",
+                "중립적인 장소에서 대화를 나눠보세요."
+            ]
         else:  # HAPPY
-            mode_part = "함께 기뻐하며 축하합니다."
-    else:  # RATIONAL
+            solutions = [
+                "이 긍정적 경험을 소중한 사람들과 나누세요.",
+                "좋은 관계의 요소를 다른 관계에도 적용해보세요.",
+                "감사함을 표현하며 관계를 더 깊게 발전시키세요."
+            ]
+    else:  # 기타 상황
         if emotion == EmotionType.SAD:
-            mode_part = "인정하면서 객관적 분석을 통한 해결책을 제시합니다."
-            if analysis["action_needed"]:
-                if analysis["main_topic"] == "직장/업무":
-                    mode_part = "인정하면서 업무 관리 전략을 제안합니다."
-                elif analysis["main_topic"] == "인간관계":
-                    mode_part = "인정하면서 효과적인 의사소통 방법을 제안합니다."
+            solutions = [
+                "오늘은 작은 목표 하나를 정하고 달성해보세요.",
+                "짧은 산책이나 명상으로 마음을 진정시키세요.",
+                "자신에게 작은 위로와 휴식을 허락하세요.",
+                "깊은 호흡으로 현재에 집중하세요."
+            ]
         else:  # HAPPY
-            if analysis["achievement_related"]:
-                mode_part = "인정하면서 성공 요인 분석과 향후 전략을 제안합니다."
-            else:
-                mode_part = "인정하면서 긍정적 경험의 가치를 객관적으로 평가하도록 안내합니다."
+            solutions = [
+                "이 긍정적인 순간을 기록하고 기념하세요.",
+                "이 기쁨을 주변 사람들과 나눠보세요.",
+                "이 경험에서 배운 점을 다른 상황에 활용하세요."
+            ]
     
-    # 최종 요약 조합
-    summary = topic_part + emotion_part + mode_part
+    # 랜덤하게 핵심 해결책 선택
+    key_solution = random.choice(solutions)
     
-    return summary
+    return key_solution
 
 @v1_router.get('/health')
 def health_check():
