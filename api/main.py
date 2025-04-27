@@ -246,8 +246,8 @@ def provide_counseling(req: CounselingRequest):
             note_analysis
         )
         
-        # 요약 생성
-        summary = generate_custom_summary(req.daily_note, req.emotion, req.response_mode, response, note_analysis)
+        # 응답의 주요 해결책 추출하여 요약 생성
+        summary = extract_key_solution_from_response(response, req.emotion, req.response_mode, note_analysis)
         
         return {
             "reply": response,
@@ -469,58 +469,44 @@ def generate_custom_response(note, emotion, mode, keywords, analysis):
     
     return response
 
-def generate_custom_summary(note, emotion, mode, response, analysis):
-    """상담 응답에 대한 맞춤형 한 줄 요약을 생성합니다."""
+def extract_key_solution_from_response(response, emotion, mode, analysis):
+    """응답 내용에서 핵심 해결책을 추출하여 요약문을 생성합니다."""
     
-    # 핵심 해결책 추출 (응답에서 가장 중요한 제안 부분 추출)
-    key_solution = ""
+    # 응답에서 문장 단위로 분리
+    sentences = re.split(r'(?<=[.!?])\s+', response)
     
-    # 상황 기반 핵심 해결책 구성
-    if analysis["main_topic"] == "직장/업무":
-        if emotion == EmotionType.SAD:
-            solutions = [
-                "우선순위를 정하고 짧은 휴식을 챙기세요.",
-                "중요한 업무 3가지만 선택하고 집중하세요.",
-                "업무 사이에 짧은 휴식을 꼭 가지세요.",
-                "퇴근 후에는 업무 연락을 확인하지 않는 경계를 만드세요."
-            ]
-        else:  # HAPPY
-            solutions = [
-                "성공 요소를 기록하고 다음 목표를 계획하세요.",
-                "이 성취의 방법을 다른 업무에도 적용해보세요.",
-                "성공을 기념하는 작은 보상을 자신에게 주세요."
-            ]
-    elif analysis["main_topic"] == "인간관계":
-        if emotion == EmotionType.SAD:
-            solutions = [
-                "나-전달법으로 솔직한 대화를 시도하세요.",
-                "상대방 관점을 이해하기 위해 적극적으로 경청하세요.",
-                "비난 대신 감정과 상황에 초점을 맞춰 대화하세요.",
-                "중립적인 장소에서 대화를 나눠보세요."
-            ]
-        else:  # HAPPY
-            solutions = [
-                "이 긍정적 경험을 소중한 사람들과 나누세요.",
-                "좋은 관계의 요소를 다른 관계에도 적용해보세요.",
-                "감사함을 표현하며 관계를 더 깊게 발전시키세요."
-            ]
-    else:  # 기타 상황
-        if emotion == EmotionType.SAD:
-            solutions = [
-                "오늘은 작은 목표 하나를 정하고 달성해보세요.",
-                "짧은 산책이나 명상으로 마음을 진정시키세요.",
-                "자신에게 작은 위로와 휴식을 허락하세요.",
-                "깊은 호흡으로 현재에 집중하세요."
-            ]
-        else:  # HAPPY
-            solutions = [
-                "이 긍정적인 순간을 기록하고 기념하세요.",
-                "이 기쁨을 주변 사람들과 나눠보세요.",
-                "이 경험에서 배운 점을 다른 상황에 활용하세요."
-            ]
+    # 핵심 해결책이 될 수 있는 문장 찾기
+    solution_sentences = []
+    solution_keywords = ["해보세요", "하세요", "좋습니다", "도움이 됩니다", "효과적입니다", 
+                        "활용해보세요", "시도해보세요", "분류해보세요", "정리해보세요", 
+                        "계획해보세요", "집중해보세요", "기록해보세요"]
     
-    # 랜덤하게 핵심 해결책 선택
-    key_solution = random.choice(solutions)
+    for sentence in sentences:
+        # 명령형이나 제안형 문장 찾기 (해결책 제시 문장 특징)
+        if any(keyword in sentence for keyword in solution_keywords):
+            solution_sentences.append(sentence)
+    
+    # 해결책을 찾지 못한 경우
+    if not solution_sentences:
+        # 기본 요약 생성
+        if analysis["main_topic"] == "직장/업무":
+            topic = "업무"
+        elif analysis["main_topic"] == "인간관계":
+            topic = "인간관계"
+        else:
+            topic = "상황"
+            
+        if emotion == EmotionType.SAD:
+            return f"{topic}에서 직면한 어려움에 대한 실질적인 해결책을 제시합니다."
+        else:
+            return f"{topic}에서의 긍정적 경험을 더 발전시킬 방법을 제안합니다."
+    
+    # 핵심 해결책 선택 (첫 번째 또는 가장 긴 해결책 문장)
+    key_solution = max(solution_sentences, key=len)
+    
+    # 너무 긴 경우 문장 잘라내기
+    if len(key_solution) > 100:
+        key_solution = key_solution[:97] + "..."
     
     return key_solution
 
