@@ -88,7 +88,7 @@ docker run -p 8000:8000 --gpus all korean-counseling-bot
 ### 상담 요청
 
 ```bash
-curl -X POST "http://localhost:8000/chat" \
+curl -X POST "http://localhost:8000/api/v1/chat" \
      -H "Content-Type: application/json" \
      -d '{"text": "요즘 너무 우울해서 아무것도 하기 싫어요.", "max_length": 150, "temperature": 0.7}'
 ```
@@ -100,6 +100,31 @@ curl -X POST "http://localhost:8000/chat" \
   "reply": "그런 감정을 느끼고 계시는군요. 우울함은 누구나 경험할 수 있는 자연스러운 감정입니다. 하루에 한 가지 작은 일부터 시작해보는 건 어떨까요? 가벼운 산책이나 좋아하는 음악 듣기 같은 작은 활동이 도움이 될 수 있습니다."
 }
 ```
+
+### 구조화된 상담 요청
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/counseling" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "daily_note": "오늘 팀장님이 어떤 일 때문에 나한테 뭐라고 했어.",
+       "emotion": "슬픔",
+       "response_mode": "이성적"
+     }'
+```
+
+### 구조화된 상담 응답 예시
+
+```json
+{
+  "reply": "팀장님의 피드백이 있으셨군요. 이런 상황에서 슬픔을 느끼는 것은 자연스럽습니다. 하지만 이것을 성장의 기회로 삼을 수도 있습니다. 피드백의 내용을 객관적으로 분석하고, 개선할 점이 있다면 어떤 것인지 생각해보는 것이 도움이 될 수 있습니다.",
+  "summary": "슬픔을 인정하면서도 이를 성장의 기회로 삼아 객관적으로 상황을 분석할 것을 제안합니다."
+}
+```
+
+### 자세한 API 명세
+
+전체 API 명세는 [API 명세서](api_docs.md)를 참조하세요.
 
 ## 프로젝트 구조
 
@@ -113,6 +138,9 @@ curl -X POST "http://localhost:8000/chat" \
 │   └── setup_1bit_llm.py
 ├── api               # FastAPI 서버 코드
 │   └── main.py
+├── test_improved.py  # 채팅 API 테스트 스크립트
+├── test_counseling.py  # 구조화된 상담 API 테스트 스크립트
+├── api_docs.md       # API 명세서
 ├── requirements.txt  # Python 패키지 목록
 ├── Dockerfile        # 컨테이너 이미지 빌드 설정
 └── README.md         # 프로젝트 개요 및 사용법

@@ -13,13 +13,13 @@ payload = {
 
 print(f"요청: {test_message}")
 print("응답 시도 중...")
-print(f"요청 URL: http://localhost:8081/chat")
+print(f"요청 URL: http://localhost:8081/api/v1/chat")
 print(f"요청 JSON: {json.dumps(payload, indent=2, ensure_ascii=False)}")
 
 try:
     # API 호출
     response = requests.post(
-        "http://localhost:8081/chat",
+        "http://localhost:8081/api/v1/chat",
         json=payload,
         headers={"Content-Type": "application/json"}
     )

@@ -44,7 +44,7 @@ def test_counseling_api():
         try:
             # API 호출
             response = requests.post(
-                "http://localhost:8081/counseling",
+                "http://localhost:8081/api/v1/counseling",
                 json=test_case["payload"],
                 headers={"Content-Type": "application/json"}
             )

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, APIRouter
 from pydantic import BaseModel
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import torch
@@ -39,6 +39,9 @@ class CounselingRequest(BaseModel):
 
 app = FastAPI(title="AI Counseling Bot API", 
               description="한국어 상담 AI 챗봇 API - MS 1bit LLM 활용")
+
+# API 버전 관리를 위한 라우터 생성
+v1_router = APIRouter(prefix="/api/v1")
 
 # Initialize model globals to None
 model = None
@@ -124,7 +127,7 @@ def clean_response(text):
     
     return cleaned.strip()
 
-@app.post('/chat')
+@v1_router.post('/chat')
 def chat(req: ChatRequest):
     global model, tokenizer
     
@@ -219,7 +222,7 @@ def chat(req: ChatRequest):
         logger.error(f"Error generating response: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post('/counseling')
+@v1_router.post('/counseling')
 def provide_counseling(req: CounselingRequest):
     """사용자의 하루 노트, 감정, 답변 모드에 따라 맞춤형 상담 응답을 제공합니다."""
     
@@ -303,7 +306,26 @@ def generate_summary(note, emotion, mode, response):
     summaries = summary_templates[emotion][mode]
     return random.choice(summaries)
 
-@app.get('/health')
+@v1_router.get('/health')
 def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "model_loaded": model is not None} 
+    return {"status": "healthy", "model_loaded": model is not None}
+
+# 라우터를 애플리케이션에 포함
+app.include_router(v1_router)
+
+# 기존 엔드포인트를 하위 호환성을 위해 유지 (선택 사항)
+@app.post('/chat')
+def legacy_chat(req: ChatRequest):
+    """하위 호환성을 위한 레거시 채팅 엔드포인트"""
+    return chat(req)
+
+@app.post('/counseling')
+def legacy_counseling(req: CounselingRequest):
+    """하위 호환성을 위한 레거시 상담 엔드포인트"""
+    return provide_counseling(req)
+
+@app.get('/health')
+def legacy_health():
+    """하위 호환성을 위한 레거시 헬스체크 엔드포인트"""
+    return health_check() 
