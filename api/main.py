@@ -54,6 +54,11 @@ TAG_PATTERN = re.compile(r'<\|[A-Z_]+\|>|<\|[A-Z_]+ \|>|<\|END_[A-Z_]+\|>')
 async def startup_event():
     global model, tokenizer
     
+    # Vercel 환경에서는 모델 로딩을 건너뛰도록 설정
+    if os.environ.get('VERCEL_ENV') == 'production':
+        logger.info("Running in Vercel production environment - model loading will be done on first request")
+        return
+    
     # Get model path from environment variable or use default
     model_path = os.getenv('MODEL_PATH', 'models/1bit-llm')
     
@@ -130,6 +135,23 @@ def clean_response(text):
 @v1_router.post('/chat')
 def chat(req: ChatRequest):
     global model, tokenizer
+    
+    # Vercel 환경에서 첫 요청 시 모델 로딩
+    if os.environ.get('VERCEL_ENV') == 'production' and (model is None or tokenizer is None):
+        logger.info("First request in Vercel environment - loading model now")
+        try:
+            # 간소화된 모델 로딩 (CPU만 사용)
+            model_path = os.getenv('MODEL_PATH', 'models/1bit-llm')
+            tokenizer = AutoTokenizer.from_pretrained(model_path)
+            model = AutoModelForCausalLM.from_pretrained(
+                model_path,
+                device_map={"": "cpu"},
+                torch_dtype=torch.float32
+            )
+            logger.info("Model loaded successfully in Vercel environment")
+        except Exception as e:
+            logger.error(f"Error loading model in Vercel environment: {e}")
+            raise HTTPException(status_code=500, detail="Failed to load model")
     
     if model is None or tokenizer is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
@@ -225,6 +247,24 @@ def chat(req: ChatRequest):
 @v1_router.post('/counseling')
 def provide_counseling(req: CounselingRequest):
     """사용자의 하루 노트, 감정, 답변 모드에 따라 맞춤형 상담 응답을 제공합니다."""
+    global model, tokenizer
+    
+    # Vercel 환경에서 첫 요청 시 모델 로딩
+    if os.environ.get('VERCEL_ENV') == 'production' and (model is None or tokenizer is None):
+        logger.info("First request in Vercel environment - loading model now")
+        try:
+            # 간소화된 모델 로딩 (CPU만 사용)
+            model_path = os.getenv('MODEL_PATH', 'models/1bit-llm')
+            tokenizer = AutoTokenizer.from_pretrained(model_path)
+            model = AutoModelForCausalLM.from_pretrained(
+                model_path,
+                device_map={"": "cpu"},
+                torch_dtype=torch.float32
+            )
+            logger.info("Model loaded successfully in Vercel environment")
+        except Exception as e:
+            logger.error(f"Error loading model in Vercel environment: {e}")
+            raise HTTPException(status_code=500, detail="Failed to load model")
     
     logger.info(f"Counseling request: note={req.daily_note[:30]}..., emotion={req.emotion}, mode={req.response_mode}")
     
@@ -479,27 +519,32 @@ def extract_key_solution_from_response(response, emotion, mode, analysis):
     solution_sentences = []
     solution_keywords = ["해보세요", "하세요", "좋습니다", "도움이 됩니다", "효과적입니다", 
                         "활용해보세요", "시도해보세요", "분류해보세요", "정리해보세요", 
-                        "계획해보세요", "집중해보세요", "기록해보세요"]
+                        "계획해보세요", "집중해보세요", "기록해보세요", "가져보세요"]
     
     for sentence in sentences:
         # 명령형이나 제안형 문장 찾기 (해결책 제시 문장 특징)
         if any(keyword in sentence for keyword in solution_keywords):
             solution_sentences.append(sentence)
     
-    # 해결책을 찾지 못한 경우
+    # 해결책을 찾지 못한 경우 기본값 사용
     if not solution_sentences:
-        # 기본 요약 생성
-        if analysis["main_topic"] == "직장/업무":
-            topic = "업무"
-        elif analysis["main_topic"] == "인간관계":
-            topic = "인간관계"
+        # 기본 해결책 텍스트 만들기
+        main_topic = analysis["main_topic"]
+        if main_topic == "직장/업무":
+            if emotion == EmotionType.SAD:
+                return "업무 우선순위를 정하고 짧은 휴식을 규칙적으로 가지세요."
+            else:
+                return "이번 성공 경험을 기록하고 다음 업무에도 적용해보세요."
+        elif main_topic == "인간관계":
+            if emotion == EmotionType.SAD:
+                return "솔직한 대화로 오해를 풀고 상대방의 관점도 이해해보세요."
+            else:
+                return "이 긍정적 경험을 소중한 사람들과 나누고 더 발전시켜 보세요."
         else:
-            topic = "상황"
-            
-        if emotion == EmotionType.SAD:
-            return f"{topic}에서 직면한 어려움에 대한 실질적인 해결책을 제시합니다."
-        else:
-            return f"{topic}에서의 긍정적 경험을 더 발전시킬 방법을 제안합니다."
+            if emotion == EmotionType.SAD:
+                return "작은 목표부터 시작하고 자신에게 필요한 휴식을 주세요."
+            else:
+                return "이 긍정적인 순간을 기록하고 더 발전시킬 방법을 찾아보세요."
     
     # 핵심 해결책 선택 (첫 번째 또는 가장 긴 해결책 문장)
     key_solution = max(solution_sentences, key=len)
