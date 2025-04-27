@@ -54,9 +54,9 @@ TAG_PATTERN = re.compile(r'<\|[A-Z_]+\|>|<\|[A-Z_]+ \|>|<\|END_[A-Z_]+\|>')
 async def startup_event():
     global model, tokenizer
     
-    # Vercel 환경에서는 모델 로딩을 건너뛰도록 설정
-    if os.environ.get('VERCEL_ENV') == 'production':
-        logger.info("Running in Vercel production environment - model loading will be done on first request")
+    # Vercel 환경에서는 모델 로딩을 건너뜁니다
+    if os.environ.get('VERCEL_ENV'):
+        logger.info("Running in Vercel environment - skipping model loading")
         return
     
     # Get model path from environment variable or use default
@@ -136,22 +136,97 @@ def clean_response(text):
 def chat(req: ChatRequest):
     global model, tokenizer
     
-    # Vercel 환경에서 첫 요청 시 모델 로딩
-    if os.environ.get('VERCEL_ENV') == 'production' and (model is None or tokenizer is None):
-        logger.info("First request in Vercel environment - loading model now")
+    # Vercel 환경에서는 모델 사용 없이 사전 정의된 응답만 사용
+    if os.environ.get('VERCEL_ENV'):
+        logger.info("Running in Vercel environment - using pre-defined responses only")
+        
         try:
-            # 간소화된 모델 로딩 (CPU만 사용)
-            model_path = os.getenv('MODEL_PATH', 'models/1bit-llm')
-            tokenizer = AutoTokenizer.from_pretrained(model_path)
-            model = AutoModelForCausalLM.from_pretrained(
-                model_path,
-                device_map={"": "cpu"},
-                torch_dtype=torch.float32
-            )
-            logger.info("Model loaded successfully in Vercel environment")
+            # 사용자 입력 받기
+            user_input = req.text
+            logger.info(f"Received chat request: {user_input[:30]}...")
+            
+            # 사전 정의된 응답 목록
+            predefined_responses = {
+                # 우울, 슬픔, 무기력 관련
+                "우울": [
+                    "우울한 감정을 느끼는 것은 자연스러운 일입니다. 언제부터 이런 감정을 느끼기 시작하셨나요?",
+                    "그런 감정이 들었군요. 우울함이 일상생활에 어떤 영향을 미치고 있나요?",
+                    "우울함은 많은 사람들이 경험하는 감정입니다. 특별히 우울함을 느끼게 하는 상황이 있었나요?"
+                ],
+                "슬픔": [
+                    "슬픔을 느끼시는군요. 그런 감정이 드는 특별한 계기가 있었나요?",
+                    "슬픔은 우리 삶의 일부입니다. 그 감정을 어떻게 대처하고 계신가요?",
+                    "그런 감정을 느끼실 때, 과거에는 어떻게 극복하셨나요?"
+                ],
+                "무기력": [
+                    "무기력함을 느끼시는군요. 일상에서 작은 성취감을 느끼는 활동을 시도해보는 것이 도움이 될 수 있어요.",
+                    "그런 상황이 힘드시겠네요. 무기력함을 줄이기 위해 시도해본 방법이 있나요?",
+                    "무기력함은 많은 사람들이 경험합니다. 언제부터 이런 감정이 시작되었나요?"
+                ],
+                
+                # 직장, 스트레스 관련
+                "직장": [
+                    "직장에서의 스트레스가 심하시군요. 구체적으로 어떤 부분이 가장 힘드신가요?",
+                    "직장 생활이 많이 힘드신 것 같네요. 혹시 특별히 스트레스를 주는 요소가 있나요?",
+                    "직장에서의 어려움은 많은 사람들이 경험합니다. 과거에는 이런 상황을 어떻게 대처하셨나요?"
+                ],
+                "스트레스": [
+                    "스트레스가 많이 쌓이셨군요. 평소에 스트레스를 푸는 방법이 있으신가요?",
+                    "스트레스를 느끼는 상황이 지속되면 힘드시겠네요. 특별히 어떤 상황에서 스트레스를 많이 느끼시나요?",
+                    "스트레스 관리는 매우 중요합니다. 혹시 이전에 도움이 되었던 스트레스 해소 방법이 있으신가요?"
+                ],
+                "일": [
+                    "일과 관련된 어려움이 있으신 것 같네요. 구체적으로 어떤 부분이 가장 부담되시나요?",
+                    "업무 상황이 힘드시군요. 어떤 종류의 업무가 특히 부담이 되시나요?",
+                    "일에서 오는 압박감이 크신 것 같습니다. 이런 상황에서 어떤 도움이 필요하신가요?"
+                ],
+                
+                # 관계, 갈등 관련
+                "갈등": [
+                    "인간관계에서 갈등은 자연스러운 일입니다. 어떤 상황에서 갈등이 발생하나요?",
+                    "관계에서의 갈등이 있으시군요. 그 상황에서 어떤 감정을 느끼셨나요?",
+                    "갈등 상황이 힘드시겠네요. 이전에는 비슷한 상황을 어떻게 해결하셨나요?"
+                ],
+                "관계": [
+                    "인간관계의 어려움은 누구에게나 큰 도전입니다. 특별히 어떤 관계가 힘드신가요?",
+                    "관계에서 어려움을 겪고 계시는군요. 어떤 부분이 가장 힘드신가요?",
+                    "관계 문제는 정말 어려울 수 있습니다. 그 관계에서 어떤 변화를 원하시나요?"
+                ],
+                "사람": [
+                    "다른 사람들과의 관계에서 어려움이 있으신 것 같네요. 어떤 상황이 가장 힘드신가요?",
+                    "사람들과의 상호작용이 힘드실 때가 있으시군요. 특별히 어떤 상황에서 그런 감정을 느끼시나요?",
+                    "사람관계에서 불편함을 느끼시는군요. 과거에는 이런 상황에서 어떻게 대처하셨나요?"
+                ]
+            }
+            
+            # 기본 응답
+            default_responses = [
+                "말씀해주신 내용에 공감합니다. 어떤 점이 가장 힘드신가요? 더 자세히 말씀해주시면 도움을 드리겠습니다.",
+                "그런 상황이 정말 힘드셨겠네요. 지금 가장 필요한 것이 무엇인지 이야기해주실 수 있을까요?",
+                "많이 힘드신 상황이네요. 혹시 이전에는 이런 상황을 어떻게 극복하셨나요?",
+                "그런 감정을 느끼는 것은 매우 자연스러운 일입니다. 조금 더 구체적으로 말씀해주시겠어요?",
+                "정말 어려운 상황이시네요. 지금 당장 작은 도움이 될 수 있는 것이 무엇이 있을까요?"
+            ]
+            
+            # 키워드 매칭으로 응답 선택
+            response = None
+            for keyword, responses in predefined_responses.items():
+                if keyword in user_input:
+                    response = random.choice(responses)
+                    logger.info(f"Matched keyword: {keyword}")
+                    break
+            
+            # 키워드가 없으면 기본 응답 사용
+            if response is None:
+                response = random.choice(default_responses)
+                logger.info("Using default response")
+            
+            logger.info(f"Sending response: {response[:30]}...")
+            return {'reply': response}
+            
         except Exception as e:
-            logger.error(f"Error loading model in Vercel environment: {e}")
-            raise HTTPException(status_code=500, detail="Failed to load model")
+            logger.error(f"Error generating response: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
     
     if model is None or tokenizer is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
@@ -161,84 +236,7 @@ def chat(req: ChatRequest):
         user_input = req.text
         logger.info(f"Received chat request: {user_input[:30]}...")
         
-        # 사전 정의된 응답 목록
-        predefined_responses = {
-            # 우울, 슬픔, 무기력 관련
-            "우울": [
-                "우울한 감정을 느끼는 것은 자연스러운 일입니다. 언제부터 이런 감정을 느끼기 시작하셨나요?",
-                "그런 감정이 들었군요. 우울함이 일상생활에 어떤 영향을 미치고 있나요?",
-                "우울함은 많은 사람들이 경험하는 감정입니다. 특별히 우울함을 느끼게 하는 상황이 있었나요?"
-            ],
-            "슬픔": [
-                "슬픔을 느끼시는군요. 그런 감정이 드는 특별한 계기가 있었나요?",
-                "슬픔은 우리 삶의 일부입니다. 그 감정을 어떻게 대처하고 계신가요?",
-                "그런 감정을 느끼실 때, 과거에는 어떻게 극복하셨나요?"
-            ],
-            "무기력": [
-                "무기력함을 느끼시는군요. 일상에서 작은 성취감을 느끼는 활동을 시도해보는 것이 도움이 될 수 있어요.",
-                "그런 상황이 힘드시겠네요. 무기력함을 줄이기 위해 시도해본 방법이 있나요?",
-                "무기력함은 많은 사람들이 경험합니다. 언제부터 이런 감정이 시작되었나요?"
-            ],
-            
-            # 직장, 스트레스 관련
-            "직장": [
-                "직장에서의 스트레스가 심하시군요. 구체적으로 어떤 부분이 가장 힘드신가요?",
-                "직장 생활이 많이 힘드신 것 같네요. 혹시 특별히 스트레스를 주는 요소가 있나요?",
-                "직장에서의 어려움은 많은 사람들이 경험합니다. 과거에는 이런 상황을 어떻게 대처하셨나요?"
-            ],
-            "스트레스": [
-                "스트레스가 많이 쌓이셨군요. 평소에 스트레스를 푸는 방법이 있으신가요?",
-                "스트레스를 느끼는 상황이 지속되면 힘드시겠네요. 특별히 어떤 상황에서 스트레스를 많이 느끼시나요?",
-                "스트레스 관리는 매우 중요합니다. 혹시 이전에 도움이 되었던 스트레스 해소 방법이 있으신가요?"
-            ],
-            "일": [
-                "일과 관련된 어려움이 있으신 것 같네요. 구체적으로 어떤 부분이 가장 부담되시나요?",
-                "업무 상황이 힘드시군요. 어떤 종류의 업무가 특히 부담이 되시나요?",
-                "일에서 오는 압박감이 크신 것 같습니다. 이런 상황에서 어떤 도움이 필요하신가요?"
-            ],
-            
-            # 관계, 갈등 관련
-            "갈등": [
-                "인간관계에서 갈등은 자연스러운 일입니다. 어떤 상황에서 갈등이 발생하나요?",
-                "관계에서의 갈등이 있으시군요. 그 상황에서 어떤 감정을 느끼셨나요?",
-                "갈등 상황이 힘드시겠네요. 이전에는 비슷한 상황을 어떻게 해결하셨나요?"
-            ],
-            "관계": [
-                "인간관계의 어려움은 누구에게나 큰 도전입니다. 특별히 어떤 관계가 힘드신가요?",
-                "관계에서 어려움을 겪고 계시는군요. 어떤 부분이 가장 힘드신가요?",
-                "관계 문제는 정말 어려울 수 있습니다. 그 관계에서 어떤 변화를 원하시나요?"
-            ],
-            "사람": [
-                "다른 사람들과의 관계에서 어려움이 있으신 것 같네요. 어떤 상황이 가장 힘드신가요?",
-                "사람들과의 상호작용이 힘드실 때가 있으시군요. 특별히 어떤 상황에서 그런 감정을 느끼시나요?",
-                "사람관계에서 불편함을 느끼시는군요. 과거에는 이런 상황에서 어떻게 대처하셨나요?"
-            ]
-        }
-        
-        # 기본 응답
-        default_responses = [
-            "말씀해주신 내용에 공감합니다. 어떤 점이 가장 힘드신가요? 더 자세히 말씀해주시면 도움을 드리겠습니다.",
-            "그런 상황이 정말 힘드셨겠네요. 지금 가장 필요한 것이 무엇인지 이야기해주실 수 있을까요?",
-            "많이 힘드신 상황이네요. 혹시 이전에는 이런 상황을 어떻게 극복하셨나요?",
-            "그런 감정을 느끼는 것은 매우 자연스러운 일입니다. 조금 더 구체적으로 말씀해주시겠어요?",
-            "정말 어려운 상황이시네요. 지금 당장 작은 도움이 될 수 있는 것이 무엇이 있을까요?"
-        ]
-        
-        # 키워드 매칭으로 응답 선택
-        response = None
-        for keyword, responses in predefined_responses.items():
-            if keyword in user_input:
-                response = random.choice(responses)
-                logger.info(f"Matched keyword: {keyword}")
-                break
-        
-        # 키워드가 없으면 기본 응답 사용
-        if response is None:
-            response = random.choice(default_responses)
-            logger.info("Using default response")
-        
-        logger.info(f"Sending response: {response[:30]}...")
-        return {'reply': response}
+        # ... existing code ...
         
     except Exception as e:
         logger.error(f"Error generating response: {e}")
@@ -249,22 +247,35 @@ def provide_counseling(req: CounselingRequest):
     """사용자의 하루 노트, 감정, 답변 모드에 따라 맞춤형 상담 응답을 제공합니다."""
     global model, tokenizer
     
-    # Vercel 환경에서 첫 요청 시 모델 로딩
-    if os.environ.get('VERCEL_ENV') == 'production' and (model is None or tokenizer is None):
-        logger.info("First request in Vercel environment - loading model now")
-        try:
-            # 간소화된 모델 로딩 (CPU만 사용)
-            model_path = os.getenv('MODEL_PATH', 'models/1bit-llm')
-            tokenizer = AutoTokenizer.from_pretrained(model_path)
-            model = AutoModelForCausalLM.from_pretrained(
-                model_path,
-                device_map={"": "cpu"},
-                torch_dtype=torch.float32
-            )
-            logger.info("Model loaded successfully in Vercel environment")
-        except Exception as e:
-            logger.error(f"Error loading model in Vercel environment: {e}")
-            raise HTTPException(status_code=500, detail="Failed to load model")
+    # Vercel 환경에서는 모델을, 실제로는 사용하지 않음 
+    # 대신 사전 정의된 응답 사용
+    if os.environ.get('VERCEL_ENV'):
+        logger.info("Running in Vercel environment - using pre-defined responses")
+        
+        # 키워드 추출 - 노트 내용에서 중요 키워드 파악
+        note_keywords = extract_keywords(req.daily_note)
+        logger.info(f"Extracted keywords: {note_keywords}")
+        
+        # 노트 내용 분석
+        note_analysis = analyze_note_content(req.daily_note)
+        logger.info(f"Note analysis: {note_analysis}")
+        
+        # 맞춤형 응답 생성
+        response = generate_custom_response(
+            req.daily_note, 
+            req.emotion, 
+            req.response_mode, 
+            note_keywords,
+            note_analysis
+        )
+        
+        # 응답의 주요 해결책 추출하여 요약 생성
+        summary = extract_key_solution_from_response(response, req.emotion, req.response_mode, note_analysis)
+        
+        return {
+            "reply": response,
+            "summary": summary
+        }
     
     logger.info(f"Counseling request: note={req.daily_note[:30]}..., emotion={req.emotion}, mode={req.response_mode}")
     
@@ -558,6 +569,8 @@ def extract_key_solution_from_response(response, emotion, mode, analysis):
 @v1_router.get('/health')
 def health_check():
     """Health check endpoint"""
+    if os.environ.get('VERCEL_ENV'):
+        return {"status": "healthy", "environment": "vercel", "model": "simulation_mode"}
     return {"status": "healthy", "model_loaded": model is not None}
 
 # 라우터를 애플리케이션에 포함

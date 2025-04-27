@@ -1,0 +1,12 @@
+models/
+*.safetensors
+*.bin
+*.pt
+*.ckpt
+__pycache__/
+data/
+venv/
+.env
+.git/
+.github/
+.vscode/ 
